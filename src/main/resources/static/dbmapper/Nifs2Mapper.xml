@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.api.NifsAPIServer.mapper.Nifs2DataMapper">
+	
+	<select id="nifs2DataList" parameterType="RequestDataVO" resultType="Nifs2DTO">
+		SELECT * FROM (SELECT * FROM TB_NIFS2_VIEW WHERE datetime BETWEEN #{startDate} AND #{endDate}
+		<if test="stationName != null and !stationName.isEmpty()">AND station_name IN
+			<foreach
+					collection="stationName" item="station" separator="," open="(" close=")">#{station}</foreach>
+		</if>
+		UNION
+		SELECT * FROM TB_NIFS2TEMP_VIEW WHERE datetime BETWEEN #{startDate} AND #{endDate}
+		<if test="stationName != null and !stationName.isEmpty()">
+			AND station_name IN
+			<foreach collection="stationName" item="station" separator="," open="(" close=")">
+				#{station}
+			</foreach>
+		</if>)
+		ORDER BY datetime
+	</select>
+
+	<select id="nifs2DataListTemp" parameterType="RequestDataVO" resultType="Nifs2DTO">
+		SELECT * FROM TB_NIFS2TEMP_VIEW WHERE datetime BETWEEN #{startDate} AND #{endDate}
+		<if test="stationName != null and !stationName.isEmpty()">
+			AND station_name IN
+			<foreach collection="stationName" item="station" separator="," open="(" close=")">
+				#{station}
+			</foreach>
+		</if>
+		ORDER BY datetime
+	</select>
+
+	<select id="keyAuthenticate" parameterType="String" resultType="int">
+		SELECT count(id) FROM TB_APIKEY WHERE key = #{key}
+	</select>
+
+	<select id ="importNifsAvgData" parameterType="java.util.Date">
+		<![CDATA[
+		MERGE INTO TB_NIFS2TEMP a
+		USING (SELECT MMSI,TO_DATE(TO_CHAR(#{calendar},'YYYY-MM-DD HH24:MI'),'YYYY-MM-DD HH24:MI:SS')IN_DATETIME,ROUND(AVG(VOL),2) AS VOL, ROUND(AVG(BATTERY),2) AS BATTERY,
+		round(AVG(CASE WHEN TO_NUMBER(LATITUDE) <= 0 THEN ''  ELSE LATITUDE END  ),4) AS LATITUDE,
+		round(AVG(CASE WHEN TO_NUMBER(LONGITUDE) <= 0 THEN ''  ELSE LONGITUDE END  ),4) AS LONGITUDE,
+		round(AVG(DISTANCE),0) as DISTANCE,
+		DECODE(SIGN( COUNT(DECODE(WT0,NULL,NULL,-99,NULL,WT0))-3) ,-1,round(AVG(DECODE(WT0,NULL,NULL,-99,NULL,WT0)),1) , 0, round(AVG(DECODE(WT0,NULL,NULL,-99,NULL,WT0)),1), 1, round(  (SUM(DECODE(WT0,NULL,NULL,-99,NULL,WT0))   - MAX(DECODE(WT0,NULL,NULL,-99,NULL,WT0)) - MIN(DECODE(WT0,NULL,NULL,-99,NULL,WT0))) / (COUNT(DECODE(WT0,NULL,NULL,-99,NULL,WT0))-2)  ,1)) as WT1,
+		DECODE(SIGN( COUNT(DECODE(WT1,NULL,NULL,-99,NULL,WT1))-3) ,-1,round(AVG(DECODE(WT1,NULL,NULL,-99,NULL,WT1)),1) , 0, round(AVG(DECODE(WT1,NULL,NULL,-99,NULL,WT1)),1), 1, round(  (SUM(DECODE(WT1,NULL,NULL,-99,NULL,WT1))   - MAX(DECODE(WT1,NULL,NULL,-99,NULL,WT1)) - MIN(DECODE(WT1,NULL,NULL,-99,NULL,WT1))) / (COUNT(DECODE(WT1,NULL,NULL,-99,NULL,WT1))-2)  ,1))  as WT2,
+		DECODE(SIGN( COUNT(DECODE(WT2,NULL,NULL,-99,NULL,WT2))-3) ,-1,round(AVG(DECODE(WT2,NULL,NULL,-99,NULL,WT2)),1) , 0, round(AVG(DECODE(WT2,NULL,NULL,-99,NULL,WT2)),1), 1, round(  (SUM(DECODE(WT2,NULL,NULL,-99,NULL,WT2))   - MAX(DECODE(WT2,NULL,NULL,-99,NULL,WT2)) - MIN(DECODE(WT2,NULL,NULL,-99,NULL,WT2))) / (COUNT(DECODE(WT2,NULL,NULL,-99,NULL,WT2))-2)  ,1))  as WT3,
+		DECODE(SIGN( COUNT(DECODE(WD0,NULL,NULL,-99,NULL,WD0))-3) ,-1,round(AVG(DECODE(WD0,NULL,NULL,-99,NULL,WD0)),1) , 0, round(AVG(DECODE(WD0,NULL,NULL,-99,NULL,WD0)),1), 1, round(  (SUM(DECODE(WD0,NULL,NULL,-99,NULL,WD0))   - MAX(DECODE(WD0,NULL,NULL,-99,NULL,WD0)) - MIN(DECODE(WD0,NULL,NULL,-99,NULL,WD0))) / (COUNT(DECODE(WD0,NULL,NULL,-99,NULL,WD0))-2)  ,1))  as WD1,
+		DECODE(SIGN( COUNT(DECODE(WD1,NULL,NULL,-99,NULL,WD1))-3) ,-1,round(AVG(DECODE(WD1,NULL,NULL,-99,NULL,WD1)),1) , 0, round(AVG(DECODE(WD1,NULL,NULL,-99,NULL,WD1)),1), 1, round(  (SUM(DECODE(WD1,NULL,NULL,-99,NULL,WD1))   - MAX(DECODE(WD1,NULL,NULL,-99,NULL,WD1)) - MIN(DECODE(WD1,NULL,NULL,-99,NULL,WD1))) / (COUNT(DECODE(WD1,NULL,NULL,-99,NULL,WD1))-2)  ,1))  as WD2,
+		DECODE(SIGN( COUNT(DECODE(WD2,NULL,NULL,-99,NULL,WD2))-3) ,-1,round(AVG(DECODE(WD2,NULL,NULL,-99,NULL,WD2)),1) , 0, round(AVG(DECODE(WD2,NULL,NULL,-99,NULL,WD2)),1), 1, round(  (SUM(DECODE(WD2,NULL,NULL,-99,NULL,WD2))   - MAX(DECODE(WD2,NULL,NULL,-99,NULL,WD2)) - MIN(DECODE(WD2,NULL,NULL,-99,NULL,WD2))) / (COUNT(DECODE(WD2,NULL,NULL,-99,NULL,WD2))-2)  ,1))  as WD3,
+
+		DECODE(SIGN( COUNT(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT))-3) ,-1,round(AVG(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT)),1) , 0, round(AVG(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT)),1), 1, round(  (SUM(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT))   - MAX(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT)) - MIN(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT))) / (COUNT(DECODE(CT_WT,NULL,NULL,-99,NULL,CT_WT))-2)  ,1))  as CT1_WT,
+		DECODE(SIGN( COUNT(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E))-3) ,-1,round(AVG(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E)),1) , 0, round(AVG(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E)),1), 1, round(  (SUM(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E))   - MAX(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E)) - MIN(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E))) / (COUNT(DECODE(CT_C4E,NULL,NULL,-99,NULL,CT_C4E))-2)  ,1))  as CT1_CT,
+		DECODE(SIGN( COUNT(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY))-3) ,-1,round(AVG(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY)),2) , 0, round(AVG(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY)),2), 1, round(  (SUM(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY))   - MAX(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY)) - MIN(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY))) / (COUNT(DECODE(CT_SALINITY,NULL,NULL,-99,NULL,CT_SALINITY))-2)  ,2)) as CT1_SAL,
+
+		DECODE(SIGN( COUNT(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT))-3) ,-1,round(AVG(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT)),1) , 0, round(AVG(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT)),1), 1, round(  (SUM(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT))   - MAX(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT)) - MIN(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT))) / (COUNT(DECODE(DO_WT,NULL,NULL,-99,NULL,DO_WT))-2)  ,1)) as DO1_WT,
+
+		DECODE(SIGN( COUNT(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS))-3) ,-1,round(AVG(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS)),1) , 0, round(AVG(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS)),1), 1, round(  (SUM(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS))   - MAX(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS)) - MIN(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS))) / (COUNT(DECODE(DO_OGS,NULL,NULL,-99,NULL,DO_OGS))-2)  ,1)) as DO1_SAT,
+		DECODE(SIGN( COUNT(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG))-3) ,-1,round(AVG(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG)),1) , 0, round(AVG(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG)),1), 1, round(  (SUM(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG))   - MAX(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG)) - MIN(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG))) / (COUNT(DECODE(DO_OG,NULL,NULL,-99,NULL,DO_OG))-2)  ,1)) as DO1_OXY
+		,null as CNT
+		,null as CT2_WT
+		,null as CT2_CT
+		,null as CT2_SAL
+		,null as CT3_WT
+		,null as CT3_CT
+		,null as CT3_SAL
+		,null as DO2_WT
+		,null as DO2_SAT
+		,null as DO2_OXY
+		,null as DO3_WT
+		,null as DO3_SAT
+		,null as DO3_OXY
+		FROM tb_nifs WHERE IN_DATETIME >= TO_DATE(TO_CHAR(#{calendar}-10/24/60,'YYYY-MM-DD HH24:MI'),'YYYY-MM-DD HH24:MI:SS') AND IN_DATETIME != TO_DATE(TO_CHAR(#{calendar},'YYYY-MM-DD HH24:MI'),'YYYY-MM-DD HH24:MI:SS') GROUP BY MMSI) b
+		ON (a.IN_DATETIME = b.IN_DATETIME AND a.mmsi = b.mmsi)
+		WHEN MATCHED THEN
+		UPDATE SET
+		a.VOL = b.vol, a.LATITUDE = b.LATITUDE, a.LONGITUDE = b.LONGITUDE,
+		a.WT1 = b.WT1, a.WT2 = b.WT2, a.WD1 = b.WD1, a.WD2 = b.WD2
+		WHEN NOT MATCHED THEN
+		INSERT (a.mmsi,a.in_datetime,a.vol,a.latitude,a.LONGITUDE,a.wt1,a.wd1,a.wt2,a.wd2,a.wt3,a.wd3,a.ct1_wt,a.ct1_ct,a.ct1_sal,a.do1_wt,a.do1_sat,a.do1_oxy,a.cnt
+		,a.ct2_wt,a.ct2_ct,a.ct2_sal,a.ct3_wt,a.ct3_ct,a.ct3_sal,a.do2_wt,a.do2_sat,a.do2_oxy,a.do3_wt,a.do3_sat,a.do3_oxy)
+		VALUES(b.mmsi,b.in_datetime,b.vol,b.latitude,b.LONGITUDE,b.wt1,b.wd1,b.wt2,b.wd2,b.wt3,b.wd3,b.ct1_wt,b.ct1_ct,b.ct1_sal,b.do1_wt,b.do1_sat,b.do1_oxy,b.cnt
+		,b.ct2_wt,b.ct2_ct,b.ct2_sal,b.ct3_wt,b.ct3_ct,b.ct3_sal,b.do2_wt,b.do2_sat,b.do2_oxy,b.do3_wt,b.do3_sat,b.do3_oxy)
+		]]>
+	</select>
+
+</mapper>
